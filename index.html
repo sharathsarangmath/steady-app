@@ -275,7 +275,6 @@ function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(
 
 /* ---------- one-tap Android alarm / calendar deep links ---------- */
 function alarmIntentUrl(hh, mm, label){
-  const fallback = encodeURIComponent(location.href);
   const parts = [
     'action=android.intent.action.SET_ALARM',
     'category=android.intent.category.DEFAULT',
@@ -283,7 +282,6 @@ function alarmIntentUrl(hh, mm, label){
     `i.android.intent.extra.alarm.MINUTES=${mm}`,
     `S.android.intent.extra.alarm.MESSAGE=${encodeURIComponent(label)}`,
     'B.android.intent.extra.alarm.SKIP_UI=false',
-    `S.browser_fallback_url=${fallback}`,
     'end'
   ];
   return `intent:#Intent;${parts.join(';')}`;
@@ -291,7 +289,6 @@ function alarmIntentUrl(hh, mm, label){
 function calendarIntentUrl(a){
   const start = new Date(a.datetime).getTime();
   const end = start + 60*60000;
-  const fallback = encodeURIComponent(location.href);
   const parts = [
     'action=android.intent.action.INSERT',
     'category=android.intent.category.DEFAULT',
@@ -299,7 +296,6 @@ function calendarIntentUrl(a){
     `l.beginTime=${start}`,
     `l.endTime=${end}`,
     a.location ? `S.eventLocation=${encodeURIComponent(a.location)}` : null,
-    `S.browser_fallback_url=${fallback}`,
     'end'
   ].filter(Boolean);
   return `intent:#Intent;${parts.join(';')}`;
@@ -314,8 +310,19 @@ function speak(text){
     }
   }catch(e){}
 }
-function openExternal(url){
+function openExternal(url, kind){
+  let left = false;
+  const onBlur = ()=>{ left = true; };
+  window.addEventListener('blur', onBlur, { once:true });
   window.location.href = url;
+  setTimeout(()=>{
+    window.removeEventListener('blur', onBlur);
+    if(!left){
+      alert(kind==='calendar'
+        ? "Couldn't open Calendar automatically on this phone. Please add this follow-up yourself."
+        : "Couldn't open the Clock app automatically on this phone. Please set this alarm yourself.");
+    }
+  }, 900);
 }
 
 async function loadState(){
@@ -463,7 +470,7 @@ function renderTodayMeds(){
       const key = `${dk}:${m.id}:${t}`;
       const taken = !!state.takenLog[key];
       const [hh,mm] = (t.match(/^\d{1,2}:\d{2}$/)) ? t.split(':').map(Number) : [null,null];
-      const alarmBtn = hh!==null ? `<button class="alarm-link" onclick="openExternal('${alarmIntentUrl(hh,mm,'Take '+m.name)}')">⏰ Set alarm</button>` : '';
+      const alarmBtn = hh!==null ? `<button class="alarm-link" onclick="openExternal('${alarmIntentUrl(hh,mm,'Take '+m.name)}','alarm')">⏰ Set alarm</button>` : '';
       slots.push(`<div class="med-pill ${taken?'taken':''}">
         <span class="time">${t}</span>
         <span class="name">${escapeHtml(m.name)}</span>
@@ -539,7 +546,7 @@ function renderMedList(){
   wrap.innerHTML = state.meds.map(m=>{
     const alarms = (m.times||[]).filter(t=>t.match(/^\d{1,2}:\d{2}$/)).map(t=>{
       const [hh,mm]=t.split(':').map(Number);
-      return `<button class="alarm-link" onclick="openExternal('${alarmIntentUrl(hh,mm,'Take '+m.name)}')">⏰ ${t}</button>`;
+      return `<button class="alarm-link" onclick="openExternal('${alarmIntentUrl(hh,mm,'Take '+m.name)}','alarm')">⏰ ${t}</button>`;
     }).join(' ');
     return `<div class="list-item">
       <div style="flex:1;"><div class="val" style="font-family:'IBM Plex Sans';font-weight:600;">${escapeHtml(m.name)}</div>
@@ -563,7 +570,7 @@ function renderAppts(){
   const row = (a, isPast) => `<div class="list-item">
     <div style="flex:1;"><div class="val" style="font-family:'IBM Plex Sans';font-weight:600;">${escapeHtml(a.doctor)}</div>
     <div class="meta">${escapeHtml(a.specialty||'')} · ${fmtDate(a.datetime)}, ${fmtTime(a.datetime)}${a.location?' · '+escapeHtml(a.location):''}</div>
-    ${!isPast?`<button class="alarm-link cal" style="margin-top:6px;" onclick="openExternal('${calendarIntentUrl(a)}')">📅 Add to Calendar</button>`:''}</div>
+    ${!isPast?`<button class="alarm-link cal" style="margin-top:6px;" onclick="openExternal('${calendarIntentUrl(a)}','calendar')">📅 Add to Calendar</button>`:''}</div>
     <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end;">
       ${!isPast?`<button class="icon-btn" onclick="markApptDone('${a.id}')">Mark done</button>`:''}
       <button class="icon-btn danger" onclick="deleteAppt('${a.id}')">Remove</button>
@@ -689,7 +696,7 @@ function renderMedAlarmPreview(){
   const times = document.getElementById('m_times').value.split(',').map(s=>s.trim()).filter(t=>t.match(/^\d{1,2}:\d{2}$/));
   wrap.innerHTML = times.map(t=>{
     const [hh,mm] = t.split(':').map(Number);
-    return `<button class="alarm-link" onclick="openExternal('${alarmIntentUrl(hh,mm,'Take '+name)}')">⏰ ${t}</button>`;
+    return `<button class="alarm-link" onclick="openExternal('${alarmIntentUrl(hh,mm,'Take '+name)}','alarm')">⏰ ${t}</button>`;
   }).join('');
 }
 function submitMed(){
