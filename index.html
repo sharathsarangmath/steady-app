@@ -90,6 +90,9 @@
   .list-item:last-child{border-bottom:none;}
   .list-item .meta{font-size:12px;color:var(--ink-soft);margin-top:2px;}
   .list-item .val{font-family:'IBM Plex Mono',monospace;font-weight:600;}
+  .log-group{margin-bottom:6px;}
+  .log-group-title{font-size:12px;font-weight:600;color:var(--primary);text-transform:uppercase;letter-spacing:.06em;margin:16px 0 2px;}
+  .log-group:first-child .log-group-title{margin-top:2px;}
   .icon-btn{background:none;border:none;color:var(--ink-soft);font-size:13px;cursor:pointer;padding:4px 6px;}
   .icon-btn.danger{color:var(--danger);}
 
@@ -360,6 +363,11 @@ function dialSVG(pct, colorHex, big){
   </svg>`;
 }
 
+function goToTrend(type){
+  switchView('analysis');
+  setAnType(type);
+}
+
 function latestByType(type){
   const items = state.vitals.filter(v=>v.type===type).sort((a,b)=> new Date(b.at)-new Date(a.at));
   return items[0]||null;
@@ -381,7 +389,7 @@ function renderGauges(){
     const prev = prevList[1];
     let trend = '';
     if(prev){ const d=(w.weight-prev.weight); trend = d===0?'No change': (d>0?`▲ ${d.toFixed(1)}`:`▼ ${Math.abs(d).toFixed(1)}`); }
-    cards.push(`<div class="gauge-card" onclick="switchView('log')">
+    cards.push(`<div class="gauge-card" onclick="goToTrend('weight')">
       ${dialSVG(0.62,'#35604F')}
       <div class="label">Weight</div>
       <div class="value">${w.weight}<span class="unit"> kg</span></div>
@@ -392,7 +400,7 @@ function renderGauges(){
   // BP
   if(bp){
     const st = bpStatus(bp.sys, bp.dia);
-    cards.push(`<div class="gauge-card" onclick="switchView('log')">
+    cards.push(`<div class="gauge-card" onclick="goToTrend('bp')">
       ${dialSVG(bp.sys/200, CLS_COLOR[st.cls])}
       <div class="label">Blood pressure</div>
       <div class="value">${bp.sys}/${bp.dia}</div>
@@ -403,7 +411,7 @@ function renderGauges(){
   // Sugar
   if(sugar){
     const st = sugarStatus(sugar.value, sugar.context||'random');
-    cards.push(`<div class="gauge-card" onclick="switchView('log')">
+    cards.push(`<div class="gauge-card" onclick="goToTrend('sugar')">
       ${dialSVG(sugar.value/250, CLS_COLOR[st.cls])}
       <div class="label">Blood sugar</div>
       <div class="value">${sugar.value}<span class="unit"> mg/dL</span></div>
@@ -414,7 +422,7 @@ function renderGauges(){
   // SpO2
   if(spo2){
     const st = spo2Status(spo2.value);
-    cards.push(`<div class="gauge-card" onclick="switchView('log')">
+    cards.push(`<div class="gauge-card" onclick="goToTrend('spo2')">
       ${dialSVG(spo2.value/100, CLS_COLOR[st.cls])}
       <div class="label">Oxygen (SpO₂)</div>
       <div class="value">${spo2.value}<span class="unit"> %</span></div>
@@ -480,22 +488,35 @@ function renderNextAppt(){
 /* ---------- log view ---------- */
 function renderLogHistory(){
   const wrap = document.getElementById('logHistory');
-  const items = [...state.vitals].sort((a,b)=> new Date(b.at)-new Date(a.at));
-  if(items.length===0){ wrap.innerHTML = `<div class="empty"><div class="glyph">✎</div>No readings logged yet</div>`; return; }
-  wrap.innerHTML = items.map(v=>{
-    let main='', meta=fmtDate(v.at)+' · '+fmtTime(v.at);
-    if(v.type==='weight') main=`${v.weight} kg`;
-    if(v.type==='bp') main=`${v.sys}/${v.dia} mmHg`;
-    if(v.type==='sugar') main=`${v.value} mg/dL <span class="muted" style="font-size:11px;">(${v.context})</span>`;
-    if(v.type==='spo2') main=`${v.value}%`;
-    return `<div class="list-item">
-      <div><div class="val">${main}</div><div class="meta">${meta}${v.notes?' · '+escapeHtml(v.notes):''}</div></div>
-      <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end;">
-        <button class="icon-btn" onclick="openLogSheet('${v.id}')">Edit</button>
-        <button class="icon-btn danger" onclick="deleteVital('${v.id}')">Delete</button>
-      </div>
-    </div>`;
-  }).join('');
+  if(state.vitals.length===0){ wrap.innerHTML = `<div class="empty"><div class="glyph">✎</div>No readings logged yet</div>`; return; }
+  const order = [
+    {key:'weight', label:'Weight'},
+    {key:'bp', label:'Blood pressure'},
+    {key:'sugar', label:'Blood sugar'},
+    {key:'spo2', label:'Oxygen (SpO₂)'}
+  ];
+  let html = '';
+  order.forEach(T=>{
+    const items = state.vitals.filter(v=>v.type===T.key).sort((a,b)=> new Date(b.at)-new Date(a.at));
+    if(items.length===0) return;
+    html += `<div class="log-group"><div class="log-group-title">${T.label} · ${items.length}</div>`;
+    html += items.map(v=>{
+      let main='', meta=fmtDate(v.at)+' · '+fmtTime(v.at);
+      if(v.type==='weight') main=`${v.weight} kg`;
+      if(v.type==='bp') main=`${v.sys}/${v.dia} mmHg`;
+      if(v.type==='sugar') main=`${v.value} mg/dL <span class="muted" style="font-size:11px;">(${v.context})</span>`;
+      if(v.type==='spo2') main=`${v.value}%`;
+      return `<div class="list-item">
+        <div><div class="val">${main}</div><div class="meta">${meta}${v.notes?' · '+escapeHtml(v.notes):''}</div></div>
+        <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end;">
+          <button class="icon-btn" onclick="openLogSheet('${v.id}')">Edit</button>
+          <button class="icon-btn danger" onclick="deleteVital('${v.id}')">Delete</button>
+        </div>
+      </div>`;
+    }).join('');
+    html += `</div>`;
+  });
+  wrap.innerHTML = html;
 }
 function deleteVital(id){
   state.vitals = state.vitals.filter(v=>v.id!==id);
