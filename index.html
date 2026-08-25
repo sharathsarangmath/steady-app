@@ -82,7 +82,7 @@
   .med-pill .name{font-weight:600;font-size:16px;}
   .med-pill button{margin-top:5px;border:none;background:var(--primary);color:#fff;font-size:14px;padding:11px 10px;border-radius:9px;font-family:'IBM Plex Sans';font-weight:600;cursor:pointer;min-height:44px;}
   .med-pill.taken button{background:var(--good);}
-  .alarm-link{display:inline-flex;align-items:center;gap:5px;margin-top:4px;font-size:12.5px;color:var(--primary);text-decoration:none;font-weight:600;border:1.5px solid var(--primary-soft);background:var(--primary-soft);padding:7px 9px;border-radius:8px;min-height:38px;}
+  .alarm-link{display:inline-flex;align-items:center;gap:5px;margin-top:4px;font-size:12.5px;color:var(--primary);text-decoration:none;font-weight:600;border:1.5px solid var(--primary-soft);background:var(--primary-soft);padding:7px 9px;border-radius:8px;min-height:38px;font-family:'IBM Plex Sans';cursor:pointer;-webkit-appearance:none;}
   .alarm-link.cal{color:var(--amber);border-color:var(--amber-soft);background:var(--amber-soft);}
 
   /* Lists */
@@ -310,6 +310,12 @@ function speak(text){
     }
   }catch(e){}
 }
+function openExternal(url){
+  try{
+    const w = window.open(url, '_blank');
+    if(!w){ window.location.href = url; }
+  }catch(e){ window.location.href = url; }
+}
 
 async function loadState(){
   try{
@@ -456,7 +462,7 @@ function renderTodayMeds(){
       const key = `${dk}:${m.id}:${t}`;
       const taken = !!state.takenLog[key];
       const [hh,mm] = (t.match(/^\d{1,2}:\d{2}$/)) ? t.split(':').map(Number) : [null,null];
-      const alarmBtn = hh!==null ? `<a class="alarm-link" href="${alarmIntentUrl(hh,mm,'Take '+m.name)}">⏰ Set alarm</a>` : '';
+      const alarmBtn = hh!==null ? `<button class="alarm-link" onclick="openExternal('${alarmIntentUrl(hh,mm,'Take '+m.name)}')">⏰ Set alarm</button>` : '';
       slots.push(`<div class="med-pill ${taken?'taken':''}">
         <span class="time">${t}</span>
         <span class="name">${escapeHtml(m.name)}</span>
@@ -532,13 +538,13 @@ function renderMedList(){
   wrap.innerHTML = state.meds.map(m=>{
     const alarms = (m.times||[]).filter(t=>t.match(/^\d{1,2}:\d{2}$/)).map(t=>{
       const [hh,mm]=t.split(':').map(Number);
-      return `<a class="alarm-link" href="${alarmIntentUrl(hh,mm,'Take '+m.name)}">⏰ ${t}</a>`;
+      return `<button class="alarm-link" onclick="openExternal('${alarmIntentUrl(hh,mm,'Take '+m.name)}')">⏰ ${t}</button>`;
     }).join(' ');
     return `<div class="list-item">
       <div style="flex:1;"><div class="val" style="font-family:'IBM Plex Sans';font-weight:600;">${escapeHtml(m.name)}</div>
       <div class="meta">${escapeHtml(m.dosage||'')} · ${(m.times||[]).join(', ')}${m.notes?' · '+escapeHtml(m.notes):''}</div>
       <div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap;">${alarms}</div></div>
-      <button class="icon-btn danger" onclick="deleteMed('${m.id}')">Remove</button>
+      <button class="icon-btn" onclick="openMedSheet('${m.id}')">Manage</button>
     </div>`;
   }).join('');
 }
@@ -556,7 +562,7 @@ function renderAppts(){
   const row = (a, isPast) => `<div class="list-item">
     <div style="flex:1;"><div class="val" style="font-family:'IBM Plex Sans';font-weight:600;">${escapeHtml(a.doctor)}</div>
     <div class="meta">${escapeHtml(a.specialty||'')} · ${fmtDate(a.datetime)}, ${fmtTime(a.datetime)}${a.location?' · '+escapeHtml(a.location):''}</div>
-    ${!isPast?`<a class="alarm-link cal" style="margin-top:6px;" href="${calendarIntentUrl(a)}">📅 Add to Calendar</a>`:''}</div>
+    ${!isPast?`<button class="alarm-link cal" style="margin-top:6px;" onclick="openExternal('${calendarIntentUrl(a)}')">📅 Add to Calendar</button>`:''}</div>
     <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end;">
       ${!isPast?`<button class="icon-btn" onclick="markApptDone('${a.id}')">Mark done</button>`:''}
       <button class="icon-btn danger" onclick="deleteAppt('${a.id}')">Remove</button>
@@ -574,7 +580,7 @@ function openSheet(html){
   document.getElementById('sheet').innerHTML = `<div class="sheet-handle"></div>${html}`;
   document.getElementById('sheetBackdrop').classList.add('open');
 }
-function closeSheet(){ document.getElementById('sheetBackdrop').classList.remove('open'); editingVitalId = null; }
+function closeSheet(){ document.getElementById('sheetBackdrop').classList.remove('open'); editingVitalId = null; editingMedId = null; }
 
 function toLocalInputValue(iso){
   const d = new Date(iso);
@@ -660,22 +666,43 @@ function submitLog(){
   saveState(); closeSheet(); renderAll();
 }
 
-function openMedSheet(){
+let editingMedId = null;
+function openMedSheet(id){
+  editingMedId = id || null;
+  const editing = editingMedId ? state.meds.find(m=>m.id===editingMedId) : null;
   openSheet(`
-    <h2>Add a medicine</h2>
-    <div class="field"><label>Name</label><input id="m_name" placeholder="e.g. Amlodipine"></div>
-    <div class="field"><label>Dosage</label><input id="m_dosage" placeholder="e.g. 5mg, 1 tablet"></div>
-    <div class="field"><label>Times per day (comma separated, 24h)</label><input id="m_times" placeholder="e.g. 08:00, 20:00"></div>
-    <p class="muted" style="margin:-8px 0 14px;">After saving, a "⏰ Set alarm" button appears for each time — one tap opens the phone's Clock app already filled in.</p>
-    <div class="field"><label>Notes (optional)</label><textarea id="m_notes" placeholder="With food, before breakfast, etc."></textarea></div>
-    <button class="btn amber" onclick="submitMed()">Save medicine</button>
+    <h2>${editing?'Manage medicine':'Add a medicine'}</h2>
+    <div class="field"><label>Name</label><input id="m_name" placeholder="e.g. Amlodipine" value="${editing?escapeHtml(editing.name):''}"></div>
+    <div class="field"><label>Dosage</label><input id="m_dosage" placeholder="e.g. 5mg, 1 tablet" value="${editing?escapeHtml(editing.dosage||''):''}"></div>
+    <div class="field"><label>Times per day (comma separated, 24h)</label><input id="m_times" placeholder="e.g. 08:00, 20:00" value="${editing?editing.times.filter(t=>t!=='—').join(', '):''}" oninput="renderMedAlarmPreview()"></div>
+    <div id="medAlarmPreview" style="display:flex;gap:6px;flex-wrap:wrap;margin:-6px 0 14px;"></div>
+    <div class="field"><label>Notes (optional)</label><textarea id="m_notes" placeholder="With food, before breakfast, etc.">${editing?escapeHtml(editing.notes||''):''}</textarea></div>
+    <button class="btn amber" onclick="submitMed()">${editing?'Save changes':'Save medicine'}</button>
+    ${editing?`<button class="btn secondary" style="margin-top:10px;" onclick="deleteMed('${editing.id}');closeSheet();">Remove medicine</button>`:''}
   `);
+  renderMedAlarmPreview();
+}
+function renderMedAlarmPreview(){
+  const wrap = document.getElementById('medAlarmPreview');
+  const name = (document.getElementById('m_name').value || 'medicine').trim();
+  const times = document.getElementById('m_times').value.split(',').map(s=>s.trim()).filter(t=>t.match(/^\d{1,2}:\d{2}$/));
+  wrap.innerHTML = times.map(t=>{
+    const [hh,mm] = t.split(':').map(Number);
+    return `<button class="alarm-link" onclick="openExternal('${alarmIntentUrl(hh,mm,'Take '+name)}')">⏰ ${t}</button>`;
+  }).join('');
 }
 function submitMed(){
   const name = document.getElementById('m_name').value.trim();
   if(!name) return alert('Enter a medicine name');
   const times = document.getElementById('m_times').value.split(',').map(s=>s.trim()).filter(Boolean);
-  state.meds.push({ id:uid(), name, dosage:document.getElementById('m_dosage').value.trim(), times: times.length?times:['—'], notes:document.getElementById('m_notes').value.trim() });
+  const record = { name, dosage:document.getElementById('m_dosage').value.trim(), times: times.length?times:['—'], notes:document.getElementById('m_notes').value.trim() };
+  if(editingMedId){
+    const idx = state.meds.findIndex(m=>m.id===editingMedId);
+    if(idx>-1) state.meds[idx] = { ...record, id: editingMedId };
+  } else {
+    state.meds.push({ ...record, id: uid() });
+  }
+  editingMedId = null;
   saveState(); closeSheet(); renderAll();
 }
 
