@@ -277,26 +277,28 @@ function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(
 function alarmIntentUrl(hh, mm, label){
   const parts = [
     'action=android.intent.action.SET_ALARM',
+    'category=android.intent.category.DEFAULT',
     `i.android.intent.extra.alarm.HOUR=${hh}`,
     `i.android.intent.extra.alarm.MINUTES=${mm}`,
     `S.android.intent.extra.alarm.MESSAGE=${encodeURIComponent(label)}`,
     'B.android.intent.extra.alarm.SKIP_UI=false',
     'end'
   ];
-  return `intent://#Intent;${parts.join(';')}`;
+  return `intent://alarm/#Intent;${parts.join(';')}`;
 }
 function calendarIntentUrl(a){
   const start = new Date(a.datetime).getTime();
   const end = start + 60*60000;
   const parts = [
     'action=android.intent.action.INSERT',
+    'category=android.intent.category.DEFAULT',
     `S.title=${encodeURIComponent('Doctor: '+a.doctor+(a.specialty?' ('+a.specialty+')':''))}`,
     `l.beginTime=${start}`,
     `l.endTime=${end}`,
     a.location ? `S.eventLocation=${encodeURIComponent(a.location)}` : null,
     'end'
   ].filter(Boolean);
-  return `intent://#Intent;${parts.join(';')}`;
+  return `intent://calendar/#Intent;${parts.join(';')}`;
 }
 function speak(text){
   try{
