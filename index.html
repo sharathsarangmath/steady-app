@@ -275,6 +275,7 @@ function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(
 
 /* ---------- one-tap Android alarm / calendar deep links ---------- */
 function alarmIntentUrl(hh, mm, label){
+  const fallback = encodeURIComponent(location.href);
   const parts = [
     'action=android.intent.action.SET_ALARM',
     'category=android.intent.category.DEFAULT',
@@ -282,13 +283,15 @@ function alarmIntentUrl(hh, mm, label){
     `i.android.intent.extra.alarm.MINUTES=${mm}`,
     `S.android.intent.extra.alarm.MESSAGE=${encodeURIComponent(label)}`,
     'B.android.intent.extra.alarm.SKIP_UI=false',
+    `S.browser_fallback_url=${fallback}`,
     'end'
   ];
-  return `intent://alarm/#Intent;${parts.join(';')}`;
+  return `intent:#Intent;${parts.join(';')}`;
 }
 function calendarIntentUrl(a){
   const start = new Date(a.datetime).getTime();
   const end = start + 60*60000;
+  const fallback = encodeURIComponent(location.href);
   const parts = [
     'action=android.intent.action.INSERT',
     'category=android.intent.category.DEFAULT',
@@ -296,9 +299,10 @@ function calendarIntentUrl(a){
     `l.beginTime=${start}`,
     `l.endTime=${end}`,
     a.location ? `S.eventLocation=${encodeURIComponent(a.location)}` : null,
+    `S.browser_fallback_url=${fallback}`,
     'end'
   ].filter(Boolean);
-  return `intent://calendar/#Intent;${parts.join(';')}`;
+  return `intent:#Intent;${parts.join(';')}`;
 }
 function speak(text){
   try{
@@ -311,10 +315,7 @@ function speak(text){
   }catch(e){}
 }
 function openExternal(url){
-  try{
-    const w = window.open(url, '_blank');
-    if(!w){ window.location.href = url; }
-  }catch(e){ window.location.href = url; }
+  window.location.href = url;
 }
 
 async function loadState(){

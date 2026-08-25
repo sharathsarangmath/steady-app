@@ -1,4 +1,4 @@
-const CACHE = 'steady-v4';
+const CACHE = 'steady-v5';
 const SHELL = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', (e) => {
